@@ -1,9 +1,12 @@
 class Member:
-    def __init__(self, member_id, full_name, phone, email, date_registered=None):
+    def __init__(self, member_id, full_name, phone, email, password_hash=None, role='Member', biometric_encoding=None, date_registered=None):
         self.member_id = member_id
         self.full_name = full_name
         self.phone = phone
         self.email = email
+        self.password_hash = password_hash
+        self.role = role
+        self.biometric_encoding = biometric_encoding
         self.date_registered = date_registered
 
 class SavingsAccount:
