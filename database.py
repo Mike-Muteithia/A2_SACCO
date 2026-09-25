@@ -16,13 +16,16 @@ def initialize_database():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Members Table
+    # Members Table (Updated for RBAC and Biometrics)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS members (
             member_id INTEGER PRIMARY KEY AUTOINCREMENT,
             full_name TEXT NOT NULL,
             phone TEXT NOT NULL,
             email TEXT,
+            password_hash TEXT,
+            role TEXT CHECK(role IN ('Admin', 'Member')) DEFAULT 'Member',
+            biometric_encoding TEXT,
             date_registered DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -65,7 +68,47 @@ def initialize_database():
 
     conn.commit()
     conn.close()
-    print(f"Database '{DB_NAME}' initialized successfully.")
+    print(f"Database '{DB_NAME}' core tables verified.")
+
+def run_migration():
+    """Safely updates the existing sacco.db members table with security columns."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Fetch current columns in the 'members' table
+        cursor.execute("PRAGMA table_info(members)")
+        columns = [col['name'] for col in cursor.fetchall()]
+        
+        migration_executed = False
+
+        # Apply schema expansions safely without dropping existing financial records
+        if 'password_hash' not in columns:
+            cursor.execute("ALTER TABLE members ADD COLUMN password_hash TEXT")
+            print("Migration: Added 'password_hash' column.")
+            migration_executed = True
+            
+        if 'role' not in columns:
+            cursor.execute("ALTER TABLE members ADD COLUMN role TEXT CHECK(role IN ('Admin', 'Member')) DEFAULT 'Member'")
+            print("Migration: Added 'role' column.")
+            migration_executed = True
+            
+        if 'biometric_encoding' not in columns:
+            cursor.execute("ALTER TABLE members ADD COLUMN biometric_encoding TEXT")
+            print("Migration: Added 'biometric_encoding' column (for facial matrices or image paths).")
+            migration_executed = True
+            
+        if migration_executed:
+            conn.commit()
+            print("Migration completed successfully. Existing savings, loans, and transactions are preserved.")
+        else:
+            print("Database is already up to date with Phase 2 security schema.")
+            
+    except sqlite3.Error as e:
+        print(f"Migration error: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 
 def execute_query(query, params=()):
     """Helper function to execute INSERT/UPDATE/DELETE queries safely."""
@@ -99,3 +142,4 @@ def fetch_query(query, params=(), fetchone=False):
 
 if __name__ == "__main__":
     initialize_database()
+    run_migration()
