@@ -1,155 +1,194 @@
-from services import MemberManager, SavingsManager, LoanManager, ReportingEngine
+import tkinter as tk
+from tkinter import messagebox, ttk
+from services import AuthManager, BiometricService, MemberManager, SavingsManager, LoanManager, ReportingEngine
 
-def get_int_input(prompt):
-    """Safely gets integer input from the user."""
-    while True:
+class SaccoApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("SACCO Financial Management System")
+        self.geometry("700x500")
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Initialize UI Frames
+        self.frames = {}
+        for F in (LoginFrame, RegisterFrame, MemberDashboard, AdminDashboard):
+            frame = F(parent=self, controller=self)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        self.show_frame(LoginFrame)
+
+    def show_frame(self, page_class):
+        """Raises the selected frame to the top of the GUI."""
+        frame = self.frames[page_class]
+        frame.tkraise()
+        if hasattr(frame, "refresh"):
+            frame.refresh()
+
+
+class LoginFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="SACCO Login", font=("Arial", 24, "bold")).pack(pady=40)
+
+        tk.Label(self, text="Member ID:").pack(pady=5)
+        self.entry_id = tk.Entry(self)
+        self.entry_id.pack()
+
+        tk.Label(self, text="Password:").pack(pady=5)
+        self.entry_password = tk.Entry(self, show="*")
+        self.entry_password.pack()
+
+        tk.Button(self, text="Login", command=self.attempt_login, width=15, bg="blue", fg="white").pack(pady=20)
+        tk.Button(self, text="Register New Account", command=lambda: controller.show_frame(RegisterFrame), width=20).pack()
+
+    def attempt_login(self):
         try:
-            return int(input(prompt))
+            member_id = int(self.entry_id.get())
+            password = self.entry_password.get()
+
+            if AuthManager.login(member_id, password):
+                if AuthManager.is_admin():
+                    self.controller.show_frame(AdminDashboard)
+                else:
+                    self.controller.show_frame(MemberDashboard)
+                self.entry_id.delete(0, tk.END)
+                self.entry_password.delete(0, tk.END)
+            else:
+                messagebox.showerror("Login Failed", "Invalid Member ID or Password.")
         except ValueError:
-            print("Invalid input. Please enter a valid integer.")
+            messagebox.showerror("Input Error", "Member ID must be a number.")
 
-def get_float_input(prompt):
-    """Safely gets float input from the user."""
-    while True:
-        try:
-            return float(input(prompt))
-        except ValueError:
-            print("Invalid input. Please enter a valid numeric amount.")
 
-def main():
-    while True:
-        print("\n" + "="*40)
-        print("   SACCO Financial Management System")
-        print("="*40)
-        print("1. Register Member")
-        print("2. View Members")
-        print("3. Search Member")
-        print("4. Deposit Savings")
-        print("5. Withdraw Savings")
-        print("6. Check Savings Balance")
-        print("7. Apply for Loan")
-        print("8. Approve Loan")
-        print("9. Make Loan Repayment")
-        print("10. View Loan Balance")
-        print("11. View Transactions")
-        print("12. Generate Reports")
-        print("13. Exit")
-        print("="*40)
+class RegisterFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
 
-        choice = input("Select an option (1-13): ").strip()
+        tk.Label(self, text="Register Member", font=("Arial", 20, "bold")).pack(pady=20)
 
-        if choice == '1':
-            print("\n--- Register Member ---")
-            name = input("Enter Full Name: ").strip()
-            phone = input("Enter Phone Number: ").strip()
-            email = input("Enter Email Address (optional): ").strip()
-            member_id = MemberManager.register_member(name, phone, email)
-            if member_id:
-                print(f"Success! Member registered with ID: {member_id}")
+        fields = ["Full Name:", "Phone Number:", "Email:", "Password:"]
+        self.entries = {}
+        
+        for field in fields:
+            tk.Label(self, text=field).pack()
+            entry = tk.Entry(self, show="*" if field == "Password:" else "")
+            entry.pack(pady=2)
+            self.entries[field] = entry
+
+        tk.Label(self, text="Role:").pack()
+        self.role_var = tk.StringVar(value="Member")
+        ttk.Combobox(self, textvariable=self.role_var, values=["Member", "Admin"], state="readonly").pack()
+
+        tk.Button(self, text="Capture Biometrics & Register", command=self.register_user, bg="green", fg="white").pack(pady=20)
+        tk.Button(self, text="Back to Login", command=lambda: controller.show_frame(LoginFrame)).pack()
+
+    def register_user(self):
+        full_name = self.entries["Full Name:"].get()
+        phone = self.entries["Phone Number:"].get()
+        email = self.entries["Email:"].get()
+        password = self.entries["Password:"].get()
+        role = self.role_var.get()
+
+        member_id = MemberManager.register_member(full_name, phone, email, password, role)
+        if member_id:
+            messagebox.showinfo("Biometrics", "Please look at the webcam. Capturing facial profile...")
+            if BiometricService.register_biometrics(member_id):
+                messagebox.showinfo("Success", f"Registration Complete! Your Member ID is: {member_id}")
+                self.controller.show_frame(LoginFrame)
             else:
-                print("Failed to register member.")
-
-        elif choice == '2':
-            print("\n--- View Members ---")
-            members = MemberManager.get_all_members()
-            if members:
-                for m in members:
-                    print(f"ID: {m.member_id} | Name: {m.full_name} | Phone: {m.phone} | Registered: {m.date_registered}")
-            else:
-                print("No members found.")
-
-        elif choice == '3':
-            print("\n--- Search Member ---")
-            member_id = get_int_input("Enter Member ID: ")
-            member = MemberManager.search_member(member_id)
-            if member:
-                print(f"ID: {member.member_id}\nName: {member.full_name}\nPhone: {member.phone}\nEmail: {member.email}")
-            else:
-                print("Member not found.")
-
-        elif choice == '4':
-            print("\n--- Deposit Savings ---")
-            member_id = get_int_input("Enter Member ID: ")
-            amount = get_float_input("Enter Deposit Amount: ")
-            if SavingsManager.deposit(member_id, amount):
-                print("Deposit successful.")
-            else:
-                print("Deposit failed.")
-
-        elif choice == '5':
-            print("\n--- Withdraw Savings ---")
-            member_id = get_int_input("Enter Member ID: ")
-            amount = get_float_input("Enter Withdrawal Amount: ")
-            if SavingsManager.withdraw(member_id, amount):
-                print("Withdrawal successful.")
-            else:
-                print("Withdrawal failed.")
-
-        elif choice == '6':
-            print("\n--- Check Savings Balance ---")
-            member_id = get_int_input("Enter Member ID: ")
-            balance = SavingsManager.get_balance(member_id)
-            print(f"Current Savings Balance: KES {balance:.2f}")
-
-        elif choice == '7':
-            print("\n--- Apply for Loan ---")
-            member_id = get_int_input("Enter Member ID: ")
-            amount = get_float_input("Enter Loan Amount: ")
-            if LoanManager.apply_loan(member_id, amount):
-                print("Loan application submitted successfully and is pending approval.")
-            else:
-                print("Loan application failed.")
-
-        elif choice == '8':
-            print("\n--- Approve Loan ---")
-            loan_id = get_int_input("Enter Loan ID to Approve: ")
-            if LoanManager.approve_loan(loan_id):
-                print("Loan approved successfully.")
-            else:
-                print("Failed to approve loan.")
-
-        elif choice == '9':
-            print("\n--- Make Loan Repayment ---")
-            member_id = get_int_input("Enter Member ID: ")
-            loan_id = get_int_input("Enter Loan ID: ")
-            amount = get_float_input("Enter Repayment Amount: ")
-            new_balance = LoanManager.repay_loan(member_id, loan_id, amount)
-            if new_balance is not None:
-                print(f"Repayment successful. Remaining Loan Balance: KES {new_balance:.2f}")
-            else:
-                print("Repayment failed.")
-
-        elif choice == '10':
-            print("\n--- View Loan Balance ---")
-            member_id = get_int_input("Enter Member ID: ")
-            loans = LoanManager.get_loan_balance(member_id)
-            if loans:
-                for loan in loans:
-                    print(f"Loan ID: {loan['loan_id']} | Amount: {loan['amount']} | Status: {loan['status']} | Balance: {loan['balance']}")
-            else:
-                print("No loans found for this member.")
-
-        elif choice == '11':
-            print("\n--- View Transactions ---")
-            transactions = ReportingEngine.get_transactions()
-            if transactions:
-                for t in transactions:
-                    print(f"ID: {t['transaction_id']} | Member ID: {t['member_id']} | Type: {t['transaction_type']} | Amount: {t['amount']} | Date: {t['date']}")
-            else:
-                print("No transactions found.")
-
-        elif choice == '12':
-            print("\n--- Generate Reports ---")
-            print(f"Total SACCO Savings: KES {ReportingEngine.get_total_savings():.2f}")
-            print(f"Total Approved Loans Issued: KES {ReportingEngine.get_total_loans():.2f}")
-            print(f"Total Outstanding Loan Balances: KES {ReportingEngine.get_outstanding_loans():.2f}")
-
-        elif choice == '13':
-            print("Exiting SACCO System. Goodbye!")
-            break
-
+                messagebox.showwarning("Biometric Warning", "Account created, but facial registration failed. Please update later.")
+                self.controller.show_frame(LoginFrame)
         else:
-            print("Invalid choice. Please select a number between 1 and 13.")
+            messagebox.showerror("Error", "Registration failed. Check inputs.")
+
+
+class MemberDashboard(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        
+        self.lbl_welcome = tk.Label(self, text="", font=("Arial", 18, "bold"))
+        self.lbl_welcome.pack(pady=20)
+
+        self.lbl_balance = tk.Label(self, text="Savings Balance: KES 0.00", font=("Arial", 14))
+        self.lbl_balance.pack(pady=10)
+
+        tk.Button(self, text="Deposit 1000 KES", command=self.deposit, width=20).pack(pady=5)
+        tk.Button(self, text="Apply for 5000 KES Loan", command=self.apply_loan, width=20).pack(pady=5)
+        tk.Button(self, text="Logout", command=self.logout, width=20, bg="red", fg="white").pack(pady=20)
+
+    def refresh(self):
+        if AuthManager.current_user:
+            self.lbl_welcome.config(text=f"Welcome, {AuthManager.current_user.full_name}")
+            balance = SavingsManager.get_balance(AuthManager.current_user.member_id)
+            self.lbl_balance.config(text=f"Savings Balance: KES {balance:.2f}")
+
+    def deposit(self):
+        if SavingsManager.deposit(AuthManager.current_user.member_id, 1000.0):
+            messagebox.showinfo("Success", "Deposited 1000 KES successfully.")
+            self.refresh()
+
+    def apply_loan(self):
+        if LoanManager.apply_loan(AuthManager.current_user.member_id, 5000.0):
+            messagebox.showinfo("Success", "Loan application submitted. Pending admin approval.")
+
+    def logout(self):
+        AuthManager.logout()
+        self.controller.show_frame(LoginFrame)
+
+
+class AdminDashboard(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        self.lbl_welcome = tk.Label(self, text="", font=("Arial", 18, "bold"), fg="blue")
+        self.lbl_welcome.pack(pady=20)
+
+        tk.Label(self, text="Administrative Controls", font=("Arial", 14)).pack(pady=10)
+
+        tk.Button(self, text="Approve Pending Loan (Requires Biometrics)", command=self.trigger_biometric_approval, bg="orange").pack(pady=10)
+        
+        self.lbl_stats = tk.Label(self, text="")
+        self.lbl_stats.pack(pady=20)
+
+        tk.Button(self, text="Logout", command=self.logout, width=20, bg="red", fg="white").pack(pady=20)
+
+    def refresh(self):
+        if AuthManager.current_user:
+            self.lbl_welcome.config(text=f"Admin Panel: {AuthManager.current_user.full_name}")
+            savings = ReportingEngine.get_total_savings()
+            loans = ReportingEngine.get_total_loans()
+            self.lbl_stats.config(text=f"System Stats\nTotal Savings: KES {savings:.2f}\nApproved Loans: KES {loans:.2f}")
+
+    def trigger_biometric_approval(self):
+        """Uses a Toplevel window to warn the Admin before activating the webcam."""
+        popup = tk.Toplevel(self)
+        popup.title("Security Check")
+        popup.geometry("300x150")
+        
+        tk.Label(popup, text="High-Privilege Action Detected.", font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(popup, text="Webcam will activate for verification.").pack(pady=5)
+        
+        def run_approval():
+            popup.destroy()
+            if LoanManager.approve_loan(1): # Hardcoded Loan ID 1 for testing simplicity
+                messagebox.showinfo("Success", "Identity Verified. Loan Approved.")
+                self.refresh()
+            else:
+                messagebox.showerror("Access Denied", "Biometric match failed or unauthorized.")
+
+        tk.Button(popup, text="Start Facial Scan", command=run_approval, bg="green", fg="white").pack(pady=10)
+
+    def logout(self):
+        AuthManager.logout()
+        self.controller.show_frame(LoginFrame)
+
 
 if __name__ == "__main__":
-    main()
+    app = SaccoApp()
+    app.mainloop()

@@ -42,28 +42,34 @@ class AuthManager:
 class BiometricService:
     @staticmethod
     def capture_encoding():
-        """Captures a frame from the webcam using OpenCV and generates a facial encoding."""
+        """Captures a frame from the webcam, with a fallback to a local image for WSL."""
         try:
             print("Initializing webcam... Please look at the camera.")
             video_capture = cv2.VideoCapture(0)
             
+            # Check if camera opened successfully (will fail in standard WSL2)
             if not video_capture.isOpened():
-                print("Error: Could not access the webcam. Ensure usbipd is attached to WSL.")
-                return None
+                print("Webcam unavailable (WSL driver limitation). Falling back to 'sample_face.jpg'...")
+                import os
+                if not os.path.exists("sample_face.jpg"):
+                    print("Error: Please place a picture with a face named 'sample_face.jpg' in this folder.")
+                    return None
                 
-            # Read a few frames to let the camera sensor adjust to lighting
-            for _ in range(5):
-                video_capture.read()
+                # Load the static fallback image
+                frame = cv2.imread("sample_face.jpg")
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            else:
+                # Original webcam logic for native Linux/Windows environments
+                for _ in range(5):
+                    video_capture.read()
+                ret, frame = video_capture.read()
+                video_capture.release()
                 
-            ret, frame = video_capture.read()
-            video_capture.release()
+                if not ret:
+                    print("Error: Could not capture image.")
+                    return None
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            if not ret:
-                print("Error: Could not capture image.")
-                return None
-                
-            # Convert BGR (OpenCV format) to RGB (face_recognition format)
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             face_locations = face_recognition.face_locations(rgb_frame)
             
             if face_locations:
