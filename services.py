@@ -49,14 +49,14 @@ class BiometricService:
             
             # Check if camera opened successfully (will fail in standard WSL2)
             if not video_capture.isOpened():
-                print("Webcam unavailable (WSL driver limitation). Falling back to 'sample_face.jpg'...")
+                print("Webcam unavailable (WSL driver limitation). Falling back to 'sample_face.jpeg'...")
                 import os
-                if not os.path.exists("sample_face.jpg"):
-                    print("Error: Please place a picture with a face named 'sample_face.jpg' in this folder.")
+                if not os.path.exists("sample_face.jpeg"):
+                    print("Error: Please place a picture with a face named 'sample_face.jpeg' in this folder.")
                     return None
                 
                 # Load the static fallback image
-                frame = cv2.imread("sample_face.jpg")
+                frame = cv2.imread("sample_face.jpeg")
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             else:
                 # Original webcam logic for native Linux/Windows environments
